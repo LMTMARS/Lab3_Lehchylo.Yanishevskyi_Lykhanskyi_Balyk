@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ```{r setup, echo=TRUE}
 # === USER: set your team id here (two-digit ordinal number from R random selection)
 team_id <- 7  # <-- replace 7 with your team id
@@ -179,3 +180,143 @@ Recommendation: Use Method 1 (exact chi-square) when sampling from an exponentia
 We implemented and simulated four CI procedures for θ = 1/λ of the exponential distribution. The exact chi-square based method gives the best empirical coverage and stable lengths. The normal approximation with known variance performs acceptably for larger sample sizes. The algebraic elimination method is of limited practical use for small n. The t-based interval is a reasonable general-purpose choice for moderate/large n.
 
 ---
+=======
+Setup chunk. 
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(21)
+theta  <- 21 / 10
+alphas <- c(0.01, 0.05, 0.1)
+ns     <- c(20, 50, 100)    
+M      <- 1000   
+install.packages("tidyr")
+```
+
+```{r}
+poisson_results <- data.frame()
+for (n in ns) {
+  cat("Poisson distribution, n =", n, "\n")
+  
+  # generating matrix of random values for P
+  x <- matrix(rpois(n * M, lambda = theta), nrow = n)
+
+  sample_mean <- colMeans(x)
+  sample_sd   <- apply(x, 2, sd)
+  
+  for (alpha in alphas) {
+    z     <- qnorm(1 - alpha/2) #z-q. for the task 2 and 3
+    # t-q for the 4th
+    tcrit <- qt(1 - alpha/2, df = n - 1)
+    
+    ## Normal approximation with knwon Var = θ
+    lower2P <- sample_mean - z * sqrt(theta / n)
+    upper2P <- sample_mean + z * sqrt(theta / n)
+    
+    # Task (a)
+    cover2P  <- mean(lower2P <= theta & theta <= upper2P)
+    # Task (b)
+    length2P <- upper2P - lower2P
+    D <- z^2 * (4 * n * sample_mean + z^2)
+    lower3P <- (2 * n * sample_mean + z^2 - sqrt(D)) / (2 * n)
+    upper3P <- (2 * n * sample_mean + z^2 + sqrt(D)) / (2 * n)
+    
+    cover3P  <- mean(lower3P <= theta & theta <= upper3P)
+    length3P <- upper3P - lower3P
+    
+    ## via using t
+    lower4P <- sample_mean - tcrit * sample_sd / sqrt(n)
+    upper4P <- sample_mean + tcrit * sample_sd / sqrt(n)
+    
+    cover4P  <- mean(lower4P <= theta & theta <= upper4P)
+    length4P <- upper4P - lower4P
+    
+    ## Results:
+    cat("alpha =", alpha, ", confidence level =", 1 - alpha, "\n")
+    
+    cat("  (Method 2) Normal (known Var = θ):\n")
+    cat("      fraction containing θ =", round(cover2P, 3), "\n")
+    cat("      mean CI length        =", round(mean(length2P), 3), "\n")
+    
+    cat("  (Method 3) Solved inequality:\n")
+    cat("      fraction containing θ =", round(cover3P, 3), "\n")
+    cat("      mean CI length        =", round(mean(length3P), 3), "\n")
+    
+    cat("  (Method 4) Student t-interval:\n")
+    cat("      fraction containing θ =", round(cover4P, 3), "\n")
+    cat("      mean CI length        =", round(mean(length4P), 3), "\n\n")
+    poisson_results <- rbind(
+      poisson_results,
+      data.frame(
+        n = n,
+        alpha = alpha,
+        method = "Method 2 (normal)",
+        coverage = cover2P,
+        avg_length = mean(length2P)
+      ),
+      data.frame(
+        n = n,
+        alpha = alpha,
+        method = "Method 3 (inequality)",
+        coverage = cover3P,
+        avg_length = mean(length3P)
+      ),
+      data.frame(
+        n = n,
+        alpha = alpha,
+        method = "Method 4 (t-interval)",
+        coverage = cover4P,
+        avg_length = mean(length4P)
+      )
+    )
+  }
+}
+head(poisson_results)
+```
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+poisson_long <- poisson_results %>%
+  mutate(alpha = factor(alpha)) %>%
+  pivot_longer(cols = c("coverage", "avg_length"),
+               names_to = "stat",
+               values_to = "value")
+
+ggplot(poisson_long, aes(x = factor(n), y = value, color = method)) +
+  geom_point() +
+  geom_line(aes(group = interaction(method, alpha))) +
+  facet_grid(stat ~ alpha, scales = "free_y", labeller = label_both) +
+  labs(
+    x = "Sample size n",
+    y = "",
+    title = paste("Poisson: coverage and average CI length (theta =", theta, ", M =", M, ")")
+  ) +
+  theme_minimal()
+```
+Task (A):
+In all cases the empirical coveage proportions are close to theoretical 
+confidence levels 1−α:
+For example:
+
+at the 0.95 confidence level (
+α=0.05), we obtain coverage of approximately 0.94–0.95;
+
+at the 0.99 confidence level (
+α=0.01), we obtain coverage of about 0.98–0.99;
+
+at the 0.90 confidence level (
+α=0.10), we obtain coverage near 0.88–0.89.
+
+Task (B):
+The same ordering for all sizes and conf levels:
+Method 2 <Method 3 <Method 4
+The bigger n, the smaller the intervals are.
+
+Method 2 is unusable in real live, because it requiers a real θ for a Var.
+
+Method 4 is the best, because it does not require knowing the true parameter, achieves accurate empirical coverage in simulations, produces intervals only slightly wider than the shortest alternative, and is simple and universally applicable.
+>>>>>>> origin/vova
