@@ -7,6 +7,12 @@ output:
 ---
 
 
+---
+Problem1, Part1 - Mykola Balyk
+Problem1, Part2 - Volodymyr Lehchylo Yanishevskyi
+Problem2 - Oleksandr Lykhanskyi
+---
+
 <<<<<<< HEAD
 ```{r setup, echo=TRUE}
 # === USER: set your team id here (two-digit ordinal number from R random selection)
