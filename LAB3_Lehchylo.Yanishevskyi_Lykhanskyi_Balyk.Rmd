@@ -714,3 +714,14 @@ $$E(\sigma^2_{n-1}) = \sigma^2$$
 **Conclusion:** $\sigma^2_{n-1}$ is **unbiased**
 
 $$\text{Bias}(\sigma^2_{n-1}) = E(\sigma^2_{n-1}) - \sigma^2 = 0$$
+We examined two variances: σ²ₙ (dividing by n) and σ²ₙ₋₁ (dividing by n-1), comparing their theoretical values with empirical values.
+
+The empirical results were close to analytical ones across all sample sizes tested (n = 10, 50, 100, 1000).
+
+The estimator σ²ₙ consistently underestimated the true population variance (σ² = 4) with a negative bias of -σ²/n, which decreased as sample size increased, demonstrating asymptotic unbiasedness.
+
+σ²ₙ₋₁ produced unbiased estimates across all sample sizes with bias values near zero.
+
+Thus we confirmed that E(σ²ₙ) = ((n-1)/n)σ² while E(σ²ₙ₋₁) = σ², proving that dividing by n-1 compensates for using the sample mean instead of the population mean.
+
+For practical applications σ²ₙ₋₁ should be preferred as it provides unbiased estimates regardless of sample size.
