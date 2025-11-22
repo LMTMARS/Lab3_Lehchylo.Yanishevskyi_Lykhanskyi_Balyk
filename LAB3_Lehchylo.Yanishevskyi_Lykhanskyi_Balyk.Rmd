@@ -1,0 +1,181 @@
+```{r setup, echo=TRUE}
+# === USER: set your team id here (two-digit ordinal number from R random selection)
+team_id <- 7  # <-- replace 7 with your team id
+set.seed(team_id)
+
+# true parameter
+theta <- team_id/10
+
+# packages
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+options(scipen=10)
+library(rmarkdown)
+```
+
+## Problem 1 — Plan
+
+- For a range of sample sizes `n` and confidence levels `1 - alpha` we will simulate `m` repetitions of samples from Exp(rate = 1/theta).
+- For each repetition we compute four confidence intervals for θ:
+	1. Exact interval based on chi-square distribution (using 2 n X̄ / θ ~ χ^2_{2n}).
+	2. Normal approximation using known population variance (uses true θ in formula).
+	3. Interval derived by solving |θ - X̄| ≤ z θ / sqrt(n) for θ (eliminates unknown θ algebraically).
+	4. Student's t-interval using sample standard deviation.
+- For each method we estimate the empirical coverage probability and average length, and produce illustrative histograms.
+
+```{r helpers, echo=TRUE}
+# Helper: compute CI for one sample (x: numeric vector)
+ci_methods <- function(x, alpha, theta_true=NULL){
+	n <- length(x)
+	xbar <- mean(x)
+	s <- sd(x)
+	z <- qnorm(1 - alpha/2)
+	results <- list()
+
+	# Method 1: exact via chi-square
+	# 2 * (1/theta) * n * xbar ~ chi-square_{2n}  => invert to get theta
+	# equivalently: 2 n xbar / theta ~ chi2_{2n}
+	df <- 2*n
+	L <- qchisq(alpha/2, df = df)
+	U <- qchisq(1 - alpha/2, df = df)
+	ci1 <- c(2*n*xbar / U, 2*n*xbar / L)
+	results$exact <- ci1
+
+	# Method 2: normal approx with known variance (uses true theta)
+	if(is.null(theta_true)){
+		ci2 <- c(NA, NA)
+	} else {
+		se_known <- theta_true / sqrt(n)
+		ci2 <- c(xbar - z * se_known, xbar + z * se_known)
+	}
+	results$normal_knownvar <- ci2
+
+	# Method 3: solve inequality |theta - xbar| <= z theta / sqrt(n)
+	denom1 <- 1 + z / sqrt(n)
+	denom2 <- 1 - z / sqrt(n)
+	if(denom2 <= 0){
+		ci3 <- c(NA, NA)
+	} else {
+		ci3 <- c(xbar / denom1, xbar / denom2)
+	}
+	results$algebraic <- ci3
+
+	# Method 4: Student t using sample sd
+	tval <- qt(1 - alpha/2, df = n - 1)
+	se_sample <- s / sqrt(n)
+	ci4 <- c(xbar - tval * se_sample, xbar + tval * se_sample)
+	results$student_t <- ci4
+
+	return(results)
+}
+
+# Single-run demonstration
+demo_sample <- rexp(10, rate = 1/theta)
+ci_methods(demo_sample, alpha = 0.05, theta_true = theta)
+```
+
+## Simulation: empirical coverage and average length
+
+We run simulations to estimate coverage probability and average interval length for each method.
+
+```{r simulate, echo=TRUE}
+run_simulation <- function(n, m = 2000, alphas = c(0.1, 0.05, 0.01), theta = theta){
+	out <- list()
+	for(alpha in alphas){
+		cover_counts <- matrix(0, nrow = m, ncol = 4)
+		lengths <- matrix(NA, nrow = m, ncol = 4)
+		colnames(cover_counts) <- colnames(lengths) <- c('exact','normal_knownvar','algebraic','student_t')
+
+		for(i in seq_len(m)){
+			x <- rexp(n, rate = 1/theta)
+			cis <- ci_methods(x, alpha = alpha, theta_true = theta)
+			for(j in seq_along(cis)){
+				ci <- cis[[j]]
+				if(any(is.na(ci))){
+					cover_counts[i,j] <- 0
+					lengths[i,j] <- NA
+				} else {
+					cover_counts[i,j] <- (ci[1] <= theta) && (theta <= ci[2])
+					lengths[i,j] <- ci[2] - ci[1]
+				}
+			}
+		}
+
+		res <- tibble(
+			method = c('exact','normal_knownvar','algebraic','student_t'),
+			coverage = colMeans(cover_counts, na.rm = TRUE),
+			avg_length = colMeans(lengths, na.rm = TRUE)
+		)
+		res$alpha <- alpha
+		res$n <- n
+		out[[as.character(alpha)]] <- res
+	}
+	do.call(rbind, out)
+}
+
+# Parameters: you can increase m for more precise estimates (costs more time)
+n_values <- c(5, 10, 30, 100)
+m <- 2000
+alphas <- c(0.1, 0.05, 0.01)
+
+sim_results <- do.call(rbind, lapply(n_values, function(nn) run_simulation(nn, m = m, alphas = alphas, theta = theta)))
+sim_results <- as_tibble(sim_results)
+sim_results
+```
+
+### Table of empirical coverage and average lengths
+
+```{r table-results, echo=FALSE}
+library(knitr)
+kable(sim_results, digits = 4)
+```
+
+## Visualizing coverage and interval lengths
+
+We plot coverage vs. sample size and average interval length vs. sample size for each method and alpha.
+
+```{r plots, echo=TRUE, warning=FALSE}
+sim_long <- sim_results %>%
+	pivot_longer(cols = c('coverage','avg_length'), names_to = 'stat', values_to = 'value')
+
+ggplot(sim_long, aes(x = factor(n), y = value, color = method, group = method)) +
+	geom_point() + geom_line(aes(group = interaction(method, alpha))) +
+	facet_grid(stat ~ alpha, scales = 'free_y', labeller = label_both) +
+	labs(x = 'Sample size n', y = '', title = paste('Coverage and Average Length (theta =', theta, ', m =', m, ')')) +
+	theme_minimal()
+```
+
+## Example histograms of sample means (illustrative)
+
+```{r histograms, echo=TRUE}
+set.seed(team_id)
+X <- replicate(1000, mean(rexp(10, rate = 1/theta)))
+qplot(X, bins = 40, xlab = 'Sample mean (n=10)', main = 'Histogram of sample mean (n=10)')
+```
+
+## Discussion and justification
+
+- Method 1 (exact chi-square): Derivation relies on the fact that if Xi ~ Exp(rate=λ) then 2λ sum(Xi) ~ χ^2_{2n}. Using θ = 1/λ and S = n X̄ we invert quantiles of χ^2_{2n} to obtain an exact CI for θ. This interval should have coverage very close to nominal for all n.
+
+- Method 2 (normal with known variance): Uses CLT and the known variance Var(X̄)=θ^2/n. It produces an interval X̄ ± z θ/√n which depends on θ; in simulations we use the true θ for the bound. This interval tends to have reasonable coverage for moderate/large n but can be off for small n due to skewness of the exponential.
+
+- Method 3 (algebraic elimination): Solving |θ - X̄| ≤ z θ/√n for θ gives an interval independent of θ. This approach algebraically eliminates θ from the standard error but requires n large enough so that 1 - z/√n > 0; otherwise interval is undefined. It is an approximation derived from the same normal argument but rearranged.
+
+- Method 4 (Student t): Replaces unknown population sd with sample sd and uses t-quantiles. For non-normal distributions (exponential is skewed) the t-approximation is not exact but often performs reasonably as n grows.
+
+## Results summary and recommendation
+
+From the simulation table and plots (above) we observe:
+
+- **Coverage:** The exact chi-square method reliably attains nominal coverage across n and alpha. The normal-known-variance method has good coverage for larger n, but can be under- or over-covering for small n. The algebraic method can fail for very small n (denominator issue) and its coverage varies. The Student-t method tends to approach nominal coverage as n increases but may be biased for small n due to skewness.
+
+- **Lengths:** The exact interval often has comparable or slightly smaller length than the conservative t-interval, especially for small to moderate n. The algebraic interval can be narrow but unstable.
+
+Recommendation: Use Method 1 (exact chi-square) when sampling from an exponential family with known form — it is exact and reliable. If the distribution is not known or the variance is not known and n is moderate/large, Method 4 (Student t) is a practical alternative. Avoid Method 3 for very small n due to possible undefined intervals and unstable behavior.
+
+## Conclusion
+
+We implemented and simulated four CI procedures for θ = 1/λ of the exponential distribution. The exact chi-square based method gives the best empirical coverage and stable lengths. The normal approximation with known variance performs acceptably for larger sample sizes. The algebraic elimination method is of limited practical use for small n. The t-based interval is a reasonable general-purpose choice for moderate/large n.
+
+---
