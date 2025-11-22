@@ -1,3 +1,12 @@
+---
+title: 'P&S-2025: Lab assignment 3'
+author: "Volodymyr Lehchylo Yanishevskyi, Oleksandr Lykhanskyi, Mykola Balyk"
+output:
+  html_document:
+    df_print: paged
+---
+
+
 <<<<<<< HEAD
 ```{r setup, echo=TRUE}
 # === USER: set your team id here (two-digit ordinal number from R random selection)
@@ -457,3 +466,251 @@ Method 2 is unusable in real live, because it requires a real θ for a Var.
 
 Method 4 is the best, because it does not require knowing the true parameter, achieves accurate empirical coverage in simulations, produces intervals only slightly wider than the shortest alternative, and is simple and universally applicable.
 
+# Initializing dataset
+
+```{r}
+set.seed(21)
+n <- 100
+mu <- 10
+sigma_pow_2 <- 4
+sigma <- sqrt(sigma_pow_2)
+dataset <- rnorm(n, mean = mu, sd = sigma)
+head(dataset)
+```
+
+# Write the code to find the variance for the dataset
+
+```{r}
+cat("Population Mean (mu):", mu, "\n")
+cat("Population Variance (sigma_pow_2):", sigma_pow_2, "\n")
+s_mean <- mean(dataset)
+sample_variance <- var(dataset)
+cat("Sample Mean:", s_mean, "\n")
+cat("Sample Variance:", sample_variance, "\n")
+```
+
+# Find σ²ₙ and σ²ₙ₋₁ for n = 10, n = 50, n = 100, n = 1000
+
+```{r}
+n_arr <- c(10, 50, 100, 1000)
+
+results <- data.frame(n = n_arr, a = NA, b = NA)
+
+for (i in 1:length(n_arr)) {
+  n <- n_arr[i]
+  d_set <- rnorm(n, mean = mu, sd = sigma)
+  s_mean <- mean(d_set)
+  square_sum <- sum((d_set - s_mean)^2)
+  a <- square_sum / n
+  b <- square_sum / (n - 1)
+  results$a[i] <- a
+  results$b[i] <- b
+}
+
+print(results)
+```
+
+# Find the biases Bias(σ²ₙ) = E(σ²ₙ) − σ² and Bias(σ²ₙ₋₁) = E(σ²ₙ₋₁) − σ²
+
+```{r}
+iterations <- 10000
+n_arr <- c(10, 50, 100, 1000)
+res <- data.frame(
+  n = n_arr,
+  E_var_a = NA,
+  E_var_b = NA,
+  B_var_a = NA,
+  B_var_b = NA
+)
+
+for (i in 1:length(n_arr)) {
+  n <- n_arr[i]
+  
+  sigma_a_vec <- numeric(iterations)
+  sigma_b_vec <- numeric(iterations)
+  
+  for (j in 1:iterations) {
+    d_set <- rnorm(n, mean = mu, sd = sigma)
+    s_mean <- mean(d_set)
+    square_sum <- sum((d_set - s_mean)^2)
+    
+    sigma_a_vec[j] <- square_sum / n
+    sigma_b_vec[j] <- square_sum / (n - 1)
+  }
+  
+  E_var_a <- mean(sigma_a_vec)
+  E_var_b <- mean(sigma_b_vec)
+  
+  B_var_a <- E_var_a - sigma_pow_2
+  B_var_b <- E_var_b - sigma_pow_2
+  
+  res$E_var_a[i] <- E_var_a
+  res$E_var_b[i] <- E_var_b
+  res$B_var_a[i] <- B_var_a
+  res$B_var_b[i] <- B_var_b
+}
+
+cat("True Population Variance (σ²):", sigma_pow_2, "\n\n")
+print("Bias Analysis Results:")
+print(res)
+```
+
+# Derive analytically the expected value of each estimator
+
+## Estimator σ²ₙ (Type a)
+
+$$E\left[\sum_{i=1}^{n}(X_i - \bar{X})^2\right] = (n-1)\sigma^2$$
+
+$$E(\sigma^2_n) = E\left[\frac{1}{n}\sum_{i=1}^{n}(X_i - \bar{X})^2\right]$$
+
+$$= \frac{1}{n} \times E\left[\sum_{i=1}^{n}(X_i - \bar{X})^2\right]$$
+
+$$= \frac{1}{n} \times (n-1)\sigma^2$$
+
+$$= \frac{n-1}{n}\sigma^2$$
+
+**Bias:**
+
+$$\text{Bias}(\sigma^2_n) = E(\sigma^2_n) - \sigma^2$$
+
+$$= \frac{n-1}{n}\sigma^2 - \sigma^2$$
+
+$$= -\frac{\sigma^2}{n}$$
+
+```{r}
+analyt_a <- data.frame(
+  n = n_arr,
+  E_var_a_analyt = ((n_arr - 1) / n_arr) * sigma_pow_2,
+  B_var_a_analyt = -sigma_pow_2 / n_arr
+)
+
+cat("Results for Type a variance:\n")
+print(analyt_a)
+cat("\n")
+```
+
+## Estimator σ²ₙ₋₁ (Type b)
+
+$$E\left[\sum_{i=1}^{n}(X_i - \bar{X})^2\right] = (n-1)\sigma^2$$
+
+$$E(\sigma^2_{n-1}) = E\left[\frac{1}{n-1}\sum_{i=1}^{n}(X_i - \bar{X})^2\right]$$
+
+$$= \frac{1}{n-1} \times E\left[\sum_{i=1}^{n}(X_i - \bar{X})^2\right]$$
+
+$$= \frac{1}{n-1} \times (n-1)\sigma^2$$
+
+$$= \sigma^2$$
+
+**Bias:**
+
+$$\text{Bias}(\sigma^2_{n-1}) = E(\sigma^2_{n-1}) - \sigma^2$$
+
+$$= \sigma^2 - \sigma^2$$
+
+$$= 0$$
+
+```{r}
+analyt_b <- data.frame(
+  n = n_arr,
+  E_var_b_analyt = rep(sigma_pow_2, length(n_arr)),
+  B_var_b_analyt = rep(0, length(n_arr))
+)
+
+cat("Results for Type b variance:\n")
+print(analyt_b)
+cat("\n")
+```
+
+## Summary of Analytical Results
+
+```{r}
+res_analyt <- data.frame(
+  n = n_arr,
+  E_var_a_analyt = ((n_arr - 1) / n_arr) * sigma_pow_2,
+  B_var_a_analyt = -sigma_pow_2 / n_arr,
+  E_var_b_analyt = rep(sigma_pow_2, length(n_arr)),
+  B_var_b_analyt = rep(0, length(n_arr))
+)
+
+print(res_analyt)
+cat("\n")
+```
+
+## Comparison: Analytical vs Simulation
+
+```{r}
+comparison <- data.frame(
+  n = n_arr,
+  E_var_a_analyt = res_analyt$E_var_a_analyt,
+  E_var_a_simulation = res$E_var_a,
+  B_var_a_analyt = res_analyt$B_var_a_analyt,
+  B_var_a_simulation = res$B_var_a,
+  E_var_b_analyt = res_analyt$E_var_b_analyt,
+  E_var_b_simulation = res$E_var_b,
+  B_var_b_analyt = res_analyt$B_var_b_analyt,
+  B_var_b_simulation = res$B_var_b
+)
+
+print(comparison)
+cat("\n")
+```
+
+# Using the expected values found above, show mathematically what of the above two estimators are unbiased
+
+## Checking σ²ₙ (Type a)
+
+```{r}
+unbiased_check_a <- data.frame(
+  n = n_arr,
+  E_var_a = ((n_arr - 1) / n_arr) * sigma_pow_2,
+  sigma_sq = rep(sigma_pow_2, length(n_arr)),
+  is_equal = rep("NO", length(n_arr))
+)
+
+print(unbiased_check_a)
+cat("\n")
+```
+
+**Mathematical proof:**
+
+$$E(\sigma^2_n) = \frac{n-1}{n}\sigma^2$$
+
+$$E(\sigma^2_n) = \sigma^2 - \frac{\sigma^2}{n}$$
+
+$$E(\sigma^2_n) \neq \sigma^2 \quad \text{(since } \frac{\sigma^2}{n} > 0\text{)}$$
+
+**Conclusion:** $\sigma^2_n$ is **biased**
+
+**Note:** As $n \to \infty$, $\text{Bias}(\sigma^2_n) \to 0$, so $\sigma^2_n$ is **asymptotically unbiased**
+
+## Checking σ²ₙ₋₁ (Type b)
+
+```{r}
+unbiased_check_b <- data.frame(
+  n = n_arr,
+  E_var_b = rep(sigma_pow_2, length(n_arr)),
+  sigma_sq = rep(sigma_pow_2, length(n_arr)),
+  is_equal = rep("YES", length(n_arr))
+)
+
+print(unbiased_check_b)
+cat("\n")
+```
+
+**Mathematical proof:**
+
+$$E(\sigma^2_{n-1}) = E\left[\frac{1}{n-1}\sum_{i=1}^{n}(X_i - \bar{X})^2\right]$$
+
+$$= \frac{1}{n-1} \times E\left[\sum_{i=1}^{n}(X_i - \bar{X})^2\right]$$
+
+$$= \frac{1}{n-1} \times (n-1)\sigma^2$$
+
+$$= \sigma^2$$
+
+**Therefore:**
+
+$$E(\sigma^2_{n-1}) = \sigma^2$$
+
+**Conclusion:** $\sigma^2_{n-1}$ is **unbiased**
+
+$$\text{Bias}(\sigma^2_{n-1}) = E(\sigma^2_{n-1}) - \sigma^2 = 0$$
